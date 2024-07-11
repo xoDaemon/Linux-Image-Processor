@@ -3,8 +3,8 @@ import pandas as pd
 import fs
 
 class database:
-    def __init__(self):
-        self.con = sql.connect('test.db')
+    def __init__(self, db_path):
+        self.con = sql.connect(db_path)
         self.cursor = self.con.cursor()
         
     def close_connection(self):
