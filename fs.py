@@ -58,6 +58,7 @@ class Image:
         files_perm_denied = 0
         dir_perm_denied = 0
         
+        # read in DFS mode
         def read_files(dir_path):
             nonlocal files_read, dir_perm_denied, files_perm_denied
             entries = os.listdir(dir_path)

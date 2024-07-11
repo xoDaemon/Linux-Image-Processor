@@ -93,16 +93,10 @@ class database:
             return False
         return True
         
-    def delete_all(self):
-        query1 =  '''
-            DROP TABLE Image
-            '''
-        query2 = '''
-            DROP TABLE File
-        '''
-        
-        self.cursor.execute(query1)
-        self.cursor.execute(query2)
+    def delete_all(self):        
+        self.cursor.execute('DROP TABLE Image')
+        self.cursor.execute('DROP TABLE File')
+        self.cursor.execute('DROP TABLE Interface')
         
         self.con.commit()
         
