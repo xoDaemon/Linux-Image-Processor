@@ -8,6 +8,8 @@ import magic
 import re
 
 class Image:
+    conf = config.Config()
+    
     def __init__(self, image_path):
         self.uuid_ = uuid.uuid4()
         self.image_path = image_path
@@ -27,20 +29,23 @@ class Image:
     def get_interfaces(self):
         try:
             with open(self.image_path + "/etc/network/interfaces", "r") as interfaces_obj:
+                database = db.database(Image.conf.db_path)
                 interfaces_file = interfaces_obj.read()
-                print(interfaces_file)
-                # r'^\s*address\s+((?:\d{1,3}\.){3}\d{1,3})(?![\d.])
-                regex_pattern = r'iface\s+(\w+)\s+\n\s*address\s+((?:\d{1,3}\.){3}\d{1,3})(?![\d.])'
-                interfaces = re.findall(regex_pattern, interfaces_file, flags = re.DOTALL)
+                regex_pattern = r'iface\s+(\w+)\s*.*?[\n]+\s*address\s+((?:\d{1,3}\.){3}\d{1,3})(?![\d.])'
                 
+                matches = re.findall(regex_pattern, interfaces_file, flags = re.DOTALL)
+                interfaces = [self.Interface(self.uuid_, match[0], match[1]) for match in matches]
+                for interface in interfaces:
+                    database.insert_interface(interface)
+                
+                database.close_connection()
                 return interfaces
         except FileNotFoundError:
             print("Interfaces file not found.")
             return None
         
     def process_file_system(self, verbose = False):
-        conf = config.Config()
-        database = db.database(conf.db_path)
+        database = db.database(Image.conf.db_path)
         
         print(f"Verbose mode: {verbose}")
         print("Processing filesystem...")
@@ -53,7 +58,6 @@ class Image:
         files_perm_denied = 0
         dir_perm_denied = 0
         
-        # should i pass once or twice?
         def read_files(dir_path):
             nonlocal files_read, dir_perm_denied, files_perm_denied
             entries = os.listdir(dir_path)
@@ -139,5 +143,8 @@ class Image:
             
             return file_type
         
-    # class Interface:
-        
+    class Interface:
+        def __init__(self, image_uuid, name, ip):
+            self.image_uuid = image_uuid
+            self.name = name
+            self.ip = ip

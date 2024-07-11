@@ -43,6 +43,21 @@ class database:
         '''
         )
         
+        self.cursor.execute(
+            '''
+                CREATE TABLE IF NOT EXISTS Interface (
+                    image_uuid TEXT,
+                    name TEXT,
+                    ip TEXT,
+                    PRIMARY KEY (name)
+                    FOREIGN KEY (image_uuid)
+                    REFERENCES Image(uuid)
+                        ON UPDATE RESTRICT
+                        ON DELETE SET NULL
+                )
+            '''
+        )
+        
         self.con.commit()
         
     def insert_image(self, image):
@@ -88,5 +103,15 @@ class database:
         
         self.cursor.execute(query1)
         self.cursor.execute(query2)
+        
+        self.con.commit()
+        
+    def insert_interface(self, interface):
+        query =  '''
+            INSERT INTO Interface(image_uuid, name, ip)
+            VALUES(?, ?, ?)
+            '''
+        
+        self.cursor.execute(query, (str(interface.image_uuid), interface.name, interface.ip))
         
         self.con.commit()
