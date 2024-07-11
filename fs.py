@@ -5,12 +5,14 @@ import os
 import db
 import config
 import magic
+import re
 
 class Image:
     def __init__(self, image_path):
+        self.uuid_ = uuid.uuid4()
         self.image_path = image_path
         self.hostname = self.get_hostname()
-        self.uuid_ = uuid.uuid4()
+        self.interfaces = self.get_interfaces()
         self.users = []
         self.files = []
 
@@ -20,6 +22,20 @@ class Image:
                 return hostname_file.readline().strip()
         except FileNotFoundError:
             print("Hostname file not found.")
+            return None
+        
+    def get_interfaces(self):
+        try:
+            with open(self.image_path + "/etc/network/interfaces", "r") as interfaces_obj:
+                interfaces_file = interfaces_obj.read()
+                print(interfaces_file)
+                # r'^\s*address\s+((?:\d{1,3}\.){3}\d{1,3})(?![\d.])
+                regex_pattern = r'iface\s+(\w+)\s+\n\s*address\s+((?:\d{1,3}\.){3}\d{1,3})(?![\d.])'
+                interfaces = re.findall(regex_pattern, interfaces_file, flags = re.DOTALL)
+                
+                return interfaces
+        except FileNotFoundError:
+            print("Interfaces file not found.")
             return None
         
     def process_file_system(self, verbose = False):
@@ -122,3 +138,6 @@ class Image:
             file_type = mime.from_file(file_path)
             
             return file_type
+        
+    # class Interface:
+        
