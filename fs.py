@@ -2,6 +2,9 @@ import time
 import uuid
 import hashlib
 import os
+import db
+import config
+import magic
 
 class Image:
     def __init__(self, image_path):
@@ -19,8 +22,13 @@ class Image:
             print("Hostname file not found.")
             return None
         
-    def process_file_system(self):
+    def process_file_system(self, verbose = False):
+        conf = config.Config()
+        database = db.database(conf.db_path)
+        
+        print(f"Verbose mode: {verbose}")
         print("Processing filesystem...")
+        print("----------------------------------")
         time.sleep(2)
         
         # test only in /var for now
@@ -30,32 +38,41 @@ class Image:
         dir_perm_denied = 0
         
         # should i pass once or twice?
-        def read_files(file_list, dir_path):
+        def read_files(dir_path):
             nonlocal files_read, dir_perm_denied, files_perm_denied
             entries = os.listdir(dir_path)
             for entry in entries:
                 entry_path = os.path.join(dir_path, entry)
                 try:
-                    # print(entry_path)
-                    # time.sleep(1)
+                    if verbose:
+                        print(entry_path)
                     if os.path.isdir(entry_path):
-                        read_files(file_list, entry_path)
+                        read_files(entry_path)
                     elif os.path.isfile(entry_path):
                         test_read = open(entry_path, 'rb')
                         
-                        file_list.append(self.File(entry, entry_path))
+                        try:
+                            new_file = self.File(self.uuid_, entry, entry_path)
+                            self.files.append(new_file)
+                            if database.search_file(new_file) == False:
+                                database.insert_file(new_file)
+                        except OSError:
+                            pass
+                        
                         files_read += 1
                         
                         test_read.close()
                 except PermissionError:
-                    print(f"Permission denied for {entry_path}")
+                    if verbose:
+                        print(f"Permission denied for {entry_path}")
                     if os.path.isdir(entry_path): dir_perm_denied += 1
                     else: files_perm_denied += 1
         
-        file_list = []
-        print("-----------------Reading files-----------------")
+        if verbose:
+            print("-----------------Reading files-----------------")
+        
         # print all entries, only keep files
-        read_files(file_list, dir_path)
+        read_files(dir_path)
         print("----------------------------------")
         
         print("File reading complete.")
@@ -65,11 +82,15 @@ class Image:
         if files_perm_denied > 0 or dir_perm_denied > 0:
             print("Try running as sudo to read all entries.")
         # if run as sudo, there are files like speech dispatcher that make the program to never end
+        
+        database.close_connection()
     
     class File:
-        def __init__(self, name, path):
+        def __init__(self, image_uuid, name, path):
+            self.image_uuid = image_uuid
             self.name = name
             self.path = path
+            self.mime_type = self.get_file_type(self.path)
             try:
                 self.md5_hash, self.sha1_hash = self.calculate_hashes()
             except TypeError: pass
@@ -87,10 +108,17 @@ class Image:
                 return md5_hash, sha1_hash
                 
             except OSError:
-                print(f"Error while calculating hashes for {self.path}")
+                print(f"Error while calculating hashes for {self.path} - type: {self.mime_type}")
+                raise
                 
         def calculate_md5(self, file):    
             return hashlib.md5(file).hexdigest()
 
         def calculate_sha1(self, file):
             return hashlib.sha1(file).hexdigest()
+        
+        def get_file_type(self, file_path):
+            mime = magic.Magic(mime = True)
+            file_type = mime.from_file(file_path)
+            
+            return file_type

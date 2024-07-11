@@ -1,6 +1,5 @@
 import sqlite3 as sql
 import pandas as pd
-import fs
 
 class database:
     def __init__(self, db_path):
@@ -19,8 +18,9 @@ class database:
         self.cursor.execute(
             '''
         CREATE TABLE IF NOT EXISTS Image (
-            uuid TEXT PRIMARY KEY,
-            hostname TEXT
+            uuid TEXT,
+            hostname TEXT,
+            PRIMARY KEY (uuid)
         )
         '''
         )
@@ -28,14 +28,16 @@ class database:
         self.cursor.execute(
             '''
         CREATE TABLE IF NOT EXISTS File (
-            uuid TEXT,
+            image_uuid TEXT,
             name TEXT,
+            mime_type TEXT,
             path TEXT,
-            md5 TEXT PRIMARY KEY,
+            md5 TEXT,
             sha1 TEXT,
-            FOREIGN KEY (uuid)
+            PRIMARY KEY (name, md5)
+            FOREIGN KEY (image_uuid)
             REFERENCES Image(uuid)
-                ON UPDATE RESTRICT 
+                ON UPDATE RESTRICT
                 ON DELETE SET NULL
         )
         '''
@@ -43,12 +45,48 @@ class database:
         
         self.con.commit()
         
-    def insert_image(self, image : fs.Image):
+    def insert_image(self, image):
         query =  '''
-            INSERT INTO image(uuid, name)
+            INSERT INTO Image(uuid, hostname)
             VALUES(?, ?)
             '''
         
         self.cursor.execute(query, (str(image.uuid_), image.hostname))
+        
+        self.con.commit()
+        
+    def insert_file(self, file):
+        query =  '''
+            INSERT INTO File(image_uuid, name, mime_type, path, md5, sha1)
+            VALUES(?, ?, ?, ?, ?, ?)
+            '''
+        
+        self.cursor.execute(query, (str(file.image_uuid), file.name, file.mime_type, file.path, file.md5_hash, file.sha1_hash))
+        
+        self.con.commit()
+        
+    def search_file(self, file):
+        query = '''
+            SELECT * FROM File
+            WHERE name = ?
+            AND md5 = ?
+        '''
+        
+        self.cursor.execute(query, (file.name, file.md5_hash))
+        res = self.cursor.fetchone()
+        if res == None:
+            return False
+        return True
+        
+    def delete_all(self):
+        query1 =  '''
+            DROP TABLE Image
+            '''
+        query2 = '''
+            DROP TABLE File
+        '''
+        
+        self.cursor.execute(query1)
+        self.cursor.execute(query2)
         
         self.con.commit()
