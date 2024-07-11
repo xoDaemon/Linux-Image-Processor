@@ -9,7 +9,6 @@ class Image:
         self.hostname = self.get_hostname()
         self.uuid_ = uuid.uuid4()
         self.users = []
-        self.interfaces = []
         self.files = []
 
     def get_hostname(self):
@@ -37,7 +36,7 @@ class Image:
             for entry in entries:
                 entry_path = os.path.join(dir_path, entry)
                 try:
-                    print(entry_path)
+                    # print(entry_path)
                     # time.sleep(1)
                     if os.path.isdir(entry_path):
                         read_files(file_list, entry_path)
