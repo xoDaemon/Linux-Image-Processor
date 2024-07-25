@@ -15,44 +15,82 @@ class database:
         print(df.to_string(index=False))
         
     def create_tables(self):
-        self.cursor.execute(
-            '''
-        CREATE TABLE IF NOT EXISTS Image (
-            uuid TEXT,
-            hostname TEXT,
-            PRIMARY KEY (uuid)
-        )
-        '''
-        )
+        # self.cursor.execute(
+        #     '''
+        # CREATE TABLE IF NOT EXISTS Image (
+        #     uuid TEXT,
+        #     hostname TEXT,
+        #     PRIMARY KEY (uuid)
+        # )
+        # '''
+        # )
+        
+        # self.cursor.execute(
+        #     '''
+        # CREATE TABLE IF NOT EXISTS File (
+        #     image_uuid TEXT,
+        #     name TEXT,
+        #     mime_type TEXT,
+        #     path TEXT,
+        #     md5 TEXT,
+        #     sha1 TEXT,
+        #     PRIMARY KEY (name, md5)
+        #     FOREIGN KEY (image_uuid)
+        #     REFERENCES Image(uuid)
+        #         ON UPDATE RESTRICT
+        #         ON DELETE SET NULL
+        # )
+        # '''
+        # )
+        
+        # self.cursor.execute(
+        #     '''
+        #         CREATE TABLE IF NOT EXISTS Interface (
+        #             image_uuid TEXT,
+        #             name TEXT,
+        #             ip TEXT,
+        #             PRIMARY KEY (name)
+        #             FOREIGN KEY (image_uuid)
+        #             REFERENCES Image(uuid)
+        #                 ON UPDATE RESTRICT
+        #                 ON DELETE SET NULL
+        #         )
+        #     '''
+        # )
+        # 
+        # self.cursor.execute(
+        #     '''
+        #         CREATE TABLE IF NOT EXISTS User (
+        #             image_uuid TEXT,
+        #             username TEXT,
+        #             passwd_hash TEXT,
+        #             uid NUMBER,
+        #             gid NUMBER,
+        #             gecos TEXT,
+        #             home_dir TEXT,
+        #             shell_path TEXT,
+        #             PRIMARY KEY (uid)
+        #             FOREIGN KEY (image_uuid)
+        #             REFERENCES Image(uuid)
+        #                 ON UPDATE RESTRICT
+        #                 ON DELETE SET NULL
+        #         )
+        #     '''
+        # )
         
         self.cursor.execute(
             '''
-        CREATE TABLE IF NOT EXISTS File (
-            image_uuid TEXT,
-            name TEXT,
-            mime_type TEXT,
-            path TEXT,
-            md5 TEXT,
-            sha1 TEXT,
-            PRIMARY KEY (name, md5)
-            FOREIGN KEY (image_uuid)
-            REFERENCES Image(uuid)
-                ON UPDATE RESTRICT
-                ON DELETE SET NULL
-        )
-        '''
-        )
-        
-        self.cursor.execute(
-            '''
-                CREATE TABLE IF NOT EXISTS Interface (
-                    image_uuid TEXT,
-                    name TEXT,
-                    ip TEXT,
-                    PRIMARY KEY (name)
-                    FOREIGN KEY (image_uuid)
-                    REFERENCES Image(uuid)
-                        ON UPDATE RESTRICT
+                CREATE TABLE IF NOT EXISTS UserPasswd (
+                    username TEXT,
+                    hash_alg TEXT,
+                    alg_param TEXT,
+                    salt TEXT,
+                    hash TEXT,
+                    last_passwd_change NUMBER,
+                    PRIMARY KEY (hash)
+                    FOREIGN KEY (username)
+                    REFERENCES User(username)
+                        ON UPDATE CASCADE
                         ON DELETE SET NULL
                 )
             '''
@@ -107,5 +145,25 @@ class database:
             '''
         
         self.cursor.execute(query, (str(interface.image_uuid), interface.name, interface.ip))
+        
+        self.con.commit()
+        
+    def insert_user(self, image_uuid, username, passwd_hash, uid, gid, gecos, home_dir, shell_path):
+        query = '''
+            INSERT INTO User(image_uuid, username, passwd_hash, uid, gid, gecos, home_dir, shell_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        '''
+        
+        self.cursor.execute(query, (str(image_uuid), username, passwd_hash, uid, gid, gecos, home_dir, shell_path))
+        
+        self.con.commit()
+    
+    def insert_user_passwd(self, username, hash_alg, alg_param, salt, hash, last_passwd_change):
+        query = '''
+            INSERT INTO UserPasswd(username, hash_alg, alg_param, salt, hash, last_passwd_change)
+            VALUES (?, ?, ?, ?, ?, ?)
+        '''
+        
+        self.cursor.execute(query, (username, hash_alg, alg_param, salt, hash, last_passwd_change))
         
         self.con.commit()

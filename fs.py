@@ -15,7 +15,7 @@ class Image:
         self.image_path = image_path
         self.hostname = self.get_hostname()
         self.interfaces = self.get_interfaces()
-        self.users = []
+        self.users = self.get_users()
         self.files = []
 
     def get_hostname(self):
@@ -44,6 +44,58 @@ class Image:
             print("Interfaces file not found.")
             return None
         
+    def get_users(self):
+        def get_passwd_hashes():
+            try:
+                with open(self.image_path + "/etc/shadow", "r") as passwd_hash_obj:
+                    passwd_hash_file = passwd_hash_obj.readlines()
+                    passwd_hashes = {}
+                    regex_pattern = r'((?:\w[/.=]*)+|(?:[*!]))'
+                    
+                    for line in passwd_hash_file:
+                        match = re.findall(regex_pattern, line)
+                        passwd_hashes[match[0]] = match
+                        
+                        # print(match)
+                    return passwd_hashes
+            except FileNotFoundError:
+                print("Shadow file not found.")
+        try:
+            with open(self.image_path + "/etc/passwd", "r") as passwd_obj:
+                database = db.database(Image.conf.db_path)
+                passwd_file = passwd_obj.readlines()
+                user_data = []
+                user_passwd_hashes = get_passwd_hashes()
+                
+                for line in passwd_file:
+                    data_fields = line.strip().split(':')
+                    
+                    if data_fields[0] in user_passwd_hashes:
+                        hash_indicator = user_passwd_hashes[data_fields[0]][1]
+                        
+                        if hash_indicator in {'*','!'}:
+                            data_fields[1] = hash_indicator
+                            
+                            # user_passwd = self.User.UserPasswd(user_passwd_hashes[data_fields[0]][0], None, None, None, hash_indicator, user_passwd_hashes[data_fields[0]][2])
+                        else:
+                            data_fields[1] = user_passwd_hashes[data_fields[0]][-5]
+                            # user_passwd = self.User.UserPasswd(user_passwd_hashes[data_fields[0]][0], None, None, None, user_passwd_hashes[data_fields[0]][-5], user_passwd_hashes[data_fields[0]][-4])
+                            
+                    user = self.User(self.uuid_, *data_fields)
+                    # user_passwd = self.User.UserPasswd(*user_passwd_hashes[data_fields[0]][1])
+                    # database.insert_user_passwd(user_passwd)
+                    
+                    user_data.append(data_fields)
+                    # fix this faulty object insert
+                    database.insert_user(user.image_uuid, user.username, user.passwd_hash, user.uid, user.gid, user.gecos, user.home_dir, user.shell_path)
+                
+                database.close_connection()
+                print(user_data)
+                return user_data
+        except FileNotFoundError:
+            print("Passwd file not found.")
+                
+                
     def process_file_system(self, verbose = False):
         database = db.database(Image.conf.db_path)
         
@@ -149,3 +201,23 @@ class Image:
             self.image_uuid = image_uuid
             self.name = name
             self.ip = ip
+            
+    class User:
+        def __init__(self, image_uuid, username, passwd_hash, uid, gid, gecos, home_dir, shell_path):
+            self.image_uuid = image_uuid
+            self.username = username
+            self.passwd_hash = passwd_hash
+            self.uid = uid
+            self.gid = gid
+            self.gecos = gecos
+            self.home_dir = home_dir
+            self.shell_path = shell_path
+            
+        class UserPasswd:
+            def __init__(self, username, hash_alg, alg_param, salt, hash_, last_passwd_change):
+                self.username = username
+                self.hash_alg = hash_alg
+                self.alg_param = alg_param
+                self.salt = salt
+                self.hash_ = hash_
+                self.last_passwd_change = last_passwd_change
