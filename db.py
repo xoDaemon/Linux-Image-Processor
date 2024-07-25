@@ -15,68 +15,68 @@ class database:
         print(df.to_string(index=False))
         
     def create_tables(self):
-        # self.cursor.execute(
-        #     '''
-        # CREATE TABLE IF NOT EXISTS Image (
-        #     uuid TEXT,
-        #     hostname TEXT,
-        #     PRIMARY KEY (uuid)
-        # )
-        # '''
-        # )
+        self.cursor.execute(
+            '''
+        CREATE TABLE IF NOT EXISTS Image (
+            uuid TEXT,
+            hostname TEXT,
+            PRIMARY KEY (uuid)
+        )
+        '''
+        )
         
-        # self.cursor.execute(
-        #     '''
-        # CREATE TABLE IF NOT EXISTS File (
-        #     image_uuid TEXT,
-        #     name TEXT,
-        #     mime_type TEXT,
-        #     path TEXT,
-        #     md5 TEXT,
-        #     sha1 TEXT,
-        #     PRIMARY KEY (name, md5)
-        #     FOREIGN KEY (image_uuid)
-        #     REFERENCES Image(uuid)
-        #         ON UPDATE RESTRICT
-        #         ON DELETE SET NULL
-        # )
-        # '''
-        # )
+        self.cursor.execute(
+            '''
+        CREATE TABLE IF NOT EXISTS File (
+            image_uuid TEXT,
+            name TEXT,
+            mime_type TEXT,
+            path TEXT,
+            md5 TEXT,
+            sha1 TEXT,
+            PRIMARY KEY (name, md5)
+            FOREIGN KEY (image_uuid)
+            REFERENCES Image(uuid)
+                ON UPDATE RESTRICT
+                ON DELETE SET NULL
+        )
+        '''
+        )
         
-        # self.cursor.execute(
-        #     '''
-        #         CREATE TABLE IF NOT EXISTS Interface (
-        #             image_uuid TEXT,
-        #             name TEXT,
-        #             ip TEXT,
-        #             PRIMARY KEY (name)
-        #             FOREIGN KEY (image_uuid)
-        #             REFERENCES Image(uuid)
-        #                 ON UPDATE RESTRICT
-        #                 ON DELETE SET NULL
-        #         )
-        #     '''
-        # )
-        # 
-        # self.cursor.execute(
-        #     '''
-        #         CREATE TABLE IF NOT EXISTS User (
-        #             image_uuid TEXT,
-        #             username TEXT,
-        #             passwd_hash TEXT,
-        #             uid NUMBER,
-        #             gid NUMBER,
-        #             gecos TEXT,
-        #             home_dir TEXT,
-        #             shell_path TEXT,
-        #             PRIMARY KEY (uid)
-        #             FOREIGN KEY (image_uuid)
-        #             REFERENCES Image(uuid)
-        #                 ON UPDATE RESTRICT
-        #                 ON DELETE SET NULL
-        #         )
-        #     '''
-        # )
+        self.cursor.execute(
+            '''
+                CREATE TABLE IF NOT EXISTS Interface (
+                    image_uuid TEXT,
+                    name TEXT,
+                    ip TEXT,
+                    PRIMARY KEY (name)
+                    FOREIGN KEY (image_uuid)
+                    REFERENCES Image(uuid)
+                        ON UPDATE RESTRICT
+                        ON DELETE SET NULL
+                )
+            '''
+        )
+        
+        self.cursor.execute(
+            '''
+                CREATE TABLE IF NOT EXISTS User (
+                    image_uuid TEXT,
+                    username TEXT,
+                    passwd_hash TEXT,
+                    uid NUMBER,
+                    gid NUMBER,
+                    gecos TEXT,
+                    home_dir TEXT,
+                    shell_path TEXT,
+                    PRIMARY KEY (uid)
+                    FOREIGN KEY (image_uuid)
+                    REFERENCES Image(uuid)
+                        ON UPDATE RESTRICT
+                        ON DELETE SET NULL
+                )
+            '''
+        )
         
         self.cursor.execute(
             '''
@@ -87,7 +87,7 @@ class database:
                     salt TEXT,
                     hash TEXT,
                     last_passwd_change NUMBER,
-                    PRIMARY KEY (hash)
+                    PRIMARY KEY (username)
                     FOREIGN KEY (username)
                     REFERENCES User(username)
                         ON UPDATE CASCADE
@@ -95,6 +95,15 @@ class database:
                 )
             '''
         )
+        
+        self.con.commit()
+        
+    def delete_all(self):        
+        self.cursor.execute('DROP TABLE IF EXISTS Image')
+        self.cursor.execute('DROP TABLE IF EXISTS File')
+        self.cursor.execute('DROP TABLE IF EXISTS Interface')
+        self.cursor.execute('DROP TABLE IF EXISTS User')
+        self.cursor.execute('DROP TABLE IF EXISTS UserPasswd')
         
         self.con.commit()
         
@@ -131,13 +140,6 @@ class database:
             return False
         return True
         
-    def delete_all(self):        
-        self.cursor.execute('DROP TABLE Image')
-        self.cursor.execute('DROP TABLE File')
-        self.cursor.execute('DROP TABLE Interface')
-        
-        self.con.commit()
-        
     def insert_interface(self, interface):
         query =  '''
             INSERT INTO Interface(image_uuid, name, ip)
@@ -148,22 +150,22 @@ class database:
         
         self.con.commit()
         
-    def insert_user(self, image_uuid, username, passwd_hash, uid, gid, gecos, home_dir, shell_path):
+    def insert_user(self, user):
         query = '''
             INSERT INTO User(image_uuid, username, passwd_hash, uid, gid, gecos, home_dir, shell_path)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         '''
         
-        self.cursor.execute(query, (str(image_uuid), username, passwd_hash, uid, gid, gecos, home_dir, shell_path))
+        self.cursor.execute(query, (str(user.image_uuid), user.username, user.passwd_hash, user.uid, user.gid, user.gecos, user.home_dir, user.shell_path))
         
         self.con.commit()
     
-    def insert_user_passwd(self, username, hash_alg, alg_param, salt, hash, last_passwd_change):
+    def insert_user_passwd(self, user_passwd):
         query = '''
             INSERT INTO UserPasswd(username, hash_alg, alg_param, salt, hash, last_passwd_change)
             VALUES (?, ?, ?, ?, ?, ?)
         '''
         
-        self.cursor.execute(query, (username, hash_alg, alg_param, salt, hash, last_passwd_change))
+        self.cursor.execute(query, (user_passwd.username, user_passwd.hash_alg, user_passwd.alg_param, user_passwd.salt, user_passwd.hash_, user_passwd.last_passwd_change))
         
         self.con.commit()

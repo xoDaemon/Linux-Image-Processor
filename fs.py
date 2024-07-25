@@ -45,12 +45,14 @@ class Image:
             return None
         
     def get_users(self):
+        # username:password:last_change:min:max:warn:inactive:expire:reserved
         def get_passwd_hashes():
             try:
-                with open(self.image_path + "/etc/shadow", "r") as passwd_hash_obj:
+                with open("/home/ali/Desktop/hash.txt", "r") as passwd_hash_obj:
+                # with open(self.image_path + "/etc/shadow", "r") as passwd_hash_obj:
                     passwd_hash_file = passwd_hash_obj.readlines()
                     passwd_hashes = {}
-                    regex_pattern = r'((?:\w[/.=]*)+|(?:[*!]))'
+                    regex_pattern = r'((?:\w[/.=-]*)+|(?:[*!]))'
                     
                     for line in passwd_hash_file:
                         match = re.findall(regex_pattern, line)
@@ -60,41 +62,71 @@ class Image:
                     return passwd_hashes
             except FileNotFoundError:
                 print("Shadow file not found.")
-        try:
+                
+        # password -> algorithm:parameters(optional):salt:hash
+        def get_hash_algorithm(passwd_fields):
+            alg_identifier = passwd_fields[0]
+            
+            if len(passwd_fields) == 1:
+                if alg_identifier in {'!', '*'}:
+                    return None
+                return "DES"                # only hash -> DES
+            if alg_identifier == '1':
+                return "MD5"
+            if alg_identifier == '5':
+                return "SHA-256"
+            if alg_identifier == '6':
+                if len(passwd_fields) == 3:
+                    return "SHA-512"        # 3 fields -> ident:salt:hash - no room for params
+                return "SHA-512-PARAM"
+            if alg_identifier == 'y':
+                return "YESSCRIPT"
+            
+            return "UNSUPPORTED"
+                
+        # username:password:UID:GID:GECOS:home_directory:shell
+        def construct_user_data():
             with open(self.image_path + "/etc/passwd", "r") as passwd_obj:
                 database = db.database(Image.conf.db_path)
                 passwd_file = passwd_obj.readlines()
                 user_data = []
                 user_passwd_hashes = get_passwd_hashes()
+                hashes = []
                 
                 for line in passwd_file:
                     data_fields = line.strip().split(':')
                     
                     if data_fields[0] in user_passwd_hashes:
-                        hash_indicator = user_passwd_hashes[data_fields[0]][1]
+                        matching_hash = user_passwd_hashes[data_fields[0]]
+                        if len(matching_hash) >= 6:     # treat special case for systemd-coredump!!
+                            hash_alg = get_hash_algorithm(matching_hash[1:-4])
+                        new_user_passwd = self.User.UserPasswd(username = data_fields[0], hash_alg = hash_alg, last_passwd_change = matching_hash[-4])
                         
-                        if hash_indicator in {'*','!'}:
-                            data_fields[1] = hash_indicator
-                            
-                            # user_passwd = self.User.UserPasswd(user_passwd_hashes[data_fields[0]][0], None, None, None, hash_indicator, user_passwd_hashes[data_fields[0]][2])
-                        else:
-                            data_fields[1] = user_passwd_hashes[data_fields[0]][-5]
-                            # user_passwd = self.User.UserPasswd(user_passwd_hashes[data_fields[0]][0], None, None, None, user_passwd_hashes[data_fields[0]][-5], user_passwd_hashes[data_fields[0]][-4])
-                            
-                    user = self.User(self.uuid_, *data_fields)
-                    # user_passwd = self.User.UserPasswd(*user_passwd_hashes[data_fields[0]][1])
-                    # database.insert_user_passwd(user_passwd)
+                        if hash_alg is not None:
+                            if hash_alg == "DES":
+                                new_user_passwd.hash_ = matching_hash[1]
+                            if hash_alg in {"MD5", "SHA-256", "SHA-512"}:
+                                new_user_passwd.salt = matching_hash[2]
+                                new_user_passwd.hash_ = matching_hash[3]
+                            if hash_alg in {"SHA-512-PARAM", "YESSCRIPT"}:
+                                new_user_passwd.alg_param = matching_hash[2]
+                                new_user_passwd.salt = matching_hash[3]
+                                new_user_passwd.hash_ = matching_hash[4]
+                        
+                        hashes.append(new_user_passwd)
+                        data_fields[1] = new_user_passwd.hash_
+                        new_user = self.User(self.uuid_, *data_fields)
                     
-                    user_data.append(data_fields)
-                    # fix this faulty object insert
-                    database.insert_user(user.image_uuid, user.username, user.passwd_hash, user.uid, user.gid, user.gecos, user.home_dir, user.shell_path)
+                    database.insert_user(new_user)
+                    database.insert_user_passwd(new_user_passwd)
                 
                 database.close_connection()
-                print(user_data)
                 return user_data
+        
+        try:
+            return construct_user_data()
         except FileNotFoundError:
             print("Passwd file not found.")
-                
                 
     def process_file_system(self, verbose = False):
         database = db.database(Image.conf.db_path)
@@ -214,7 +246,7 @@ class Image:
             self.shell_path = shell_path
             
         class UserPasswd:
-            def __init__(self, username, hash_alg, alg_param, salt, hash_, last_passwd_change):
+            def __init__(self, username, hash_alg = None, alg_param = None, salt = None, hash_ = None, last_passwd_change = 0):
                 self.username = username
                 self.hash_alg = hash_alg
                 self.alg_param = alg_param
