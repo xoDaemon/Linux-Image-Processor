@@ -129,6 +129,7 @@ class Image:
             print("Passwd file not found.")
                 
     def process_file_system(self, verbose = False):
+        skip_list = Image.conf.skip_list
         database = db.database(Image.conf.db_path)
         
         print(f"Verbose mode: {verbose}")
@@ -148,30 +149,32 @@ class Image:
             entries = os.listdir(dir_path)
             for entry in entries:
                 entry_path = os.path.join(dir_path, entry)
-                try:
-                    if verbose:
-                        print(entry_path)
-                    if os.path.isdir(entry_path):
-                        read_files(entry_path)
-                    elif os.path.isfile(entry_path):
-                        test_read = open(entry_path, 'rb')
-                        
-                        try:
-                            new_file = self.File(self.uuid_, entry, entry_path)
-                            self.files.append(new_file)
-                            if database.search_file(new_file) == False:
-                                database.insert_file(new_file)
-                        except OSError:
-                            pass
-                        
-                        files_read += 1
-                        
-                        test_read.close()
-                except PermissionError:
-                    if verbose:
-                        print(f"Permission denied for {entry_path}")
-                    if os.path.isdir(entry_path): dir_perm_denied += 1
-                    else: files_perm_denied += 1
+                
+                if entry_path not in skip_list:
+                    try:
+                        if verbose:
+                            print(entry_path)
+                        if os.path.isdir(entry_path):
+                            read_files(entry_path)
+                        elif os.path.isfile(entry_path):
+                            test_read = open(entry_path, 'rb')
+                            
+                            try:
+                                new_file = self.File(self.uuid_, entry, entry_path)
+                                self.files.append(new_file)
+                                if database.search_file(new_file) == False:
+                                    database.insert_file(new_file)
+                            except OSError:
+                                pass
+                            
+                            files_read += 1
+                            
+                            test_read.close()
+                    except PermissionError:
+                        if verbose:
+                            print(f"Permission denied for {entry_path}")
+                        if os.path.isdir(entry_path): dir_perm_denied += 1
+                        else: files_perm_denied += 1
         
         if verbose:
             print("-----------------Reading files-----------------")

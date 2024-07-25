@@ -20,3 +20,4 @@ class Config(metaclass = ConfigMeta):
         self.db_path = config['PATHS']['db_path']
         self.disk_path = config['PATHS']['disk_path']
         self.mount_path = config['PATHS']['mount_path']
+        self.skip_list = config['PATHS']['skip_list']
