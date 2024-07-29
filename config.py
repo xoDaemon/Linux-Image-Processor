@@ -19,5 +19,6 @@ class Config(metaclass = ConfigMeta):
         self.image_path = config['PATHS']['image_path']
         self.db_path = config['PATHS']['db_path']
         self.disk_path = config['PATHS']['disk_path']
-        self.mount_path = config['PATHS']['mount_path']
+        self.phy_mount_path = config['PATHS']['phy_mount_path']
+        self.log_mount_path = config['PATHS']['log_mount_path']
         self.skip_list = config['PATHS']['skip_list']
