@@ -4,4 +4,4 @@ test.db
 config.ini
 playground.py
 main.py
-proxy.py
+linpeas_logs
