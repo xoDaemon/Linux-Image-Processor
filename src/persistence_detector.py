@@ -1,7 +1,7 @@
 import subprocess
 
 def persistence_detector(filesystem_path, log_name):
-    subproc = subprocess.run(["bash", "linPEAS_runner.bash", filesystem_path])
+    subproc = subprocess.run(["bash", "./shell_scripts/linPEAS_runner.bash", filesystem_path])
     if subproc.returncode != 0:
         raise subprocess.CalledProcessError(subproc.returncode, "linPEAS_runner.bash", \
                                             "Error while executing linPEAS runner: {subproc.returncode}") from None

@@ -1,11 +1,13 @@
 import time
 import uuid
-import hashlib
 import os
-import db
-import config
-import magic
 import re
+import src.database as db
+import src.config as config
+import src.image_utils as iu
+import src.vtscan as vt
+
+delimiter = "-------------------------------------------------------------------------"
 
 class Image:
     conf = config.Config()
@@ -17,6 +19,7 @@ class Image:
         self.interfaces = self.get_interfaces()
         self.users = self.get_users()
         self.files = []
+        self.malicious_files = []
 
     def get_hostname(self):
         try:
@@ -29,12 +32,12 @@ class Image:
     def get_interfaces(self):
         try:
             with open(self.image_path + "/etc/network/interfaces", "r") as interfaces_obj:
-                database = db.database(Image.conf.db_path)
+                database = db.Database(Image.conf.db_path)
                 interfaces_file = interfaces_obj.read()
                 regex_pattern = r'iface\s+(\w+)\s*.*?[\n]+\s*address\s+((?:\d{1,3}\.){3}\d{1,3})(?![\d.])'
                 
                 matches = re.findall(regex_pattern, interfaces_file, flags = re.DOTALL)
-                interfaces = [self.Interface(self.uuid_, match[0], match[1]) for match in matches]
+                interfaces = [iu.Interface(self.uuid_, match[0], match[1]) for match in matches]
                 for interface in interfaces:
                     database.insert_interface(interface)
                 
@@ -48,8 +51,7 @@ class Image:
         # username:password:last_change:min:max:warn:inactive:expire:reserved
         def get_passwd_hashes():
             try:
-                with open("/home/ali/Desktop/hash.txt", "r") as passwd_hash_obj:
-                # with open(self.image_path + "/etc/shadow", "r") as passwd_hash_obj:
+                with open(self.image_path + "/etc/shadow", "r") as passwd_hash_obj:
                     passwd_hash_file = passwd_hash_obj.readlines()
                     passwd_hashes = {}
                     regex_pattern = r'((?:\w[/.=-]*)+|(?:[*!]))'
@@ -87,7 +89,7 @@ class Image:
         # username:password:UID:GID:GECOS:home_directory:shell
         def construct_user_data():
             with open(self.image_path + "/etc/passwd", "r") as passwd_obj:
-                database = db.database(Image.conf.db_path)
+                database = db.Database(Image.conf.db_path)
                 passwd_file = passwd_obj.readlines()
                 user_data = []
                 user_passwd_hashes = get_passwd_hashes()
@@ -100,7 +102,7 @@ class Image:
                         matching_hash = user_passwd_hashes[data_fields[0]]
                         if len(matching_hash) >= 6:     # treat special case for systemd-coredump!!
                             hash_alg = get_hash_algorithm(matching_hash[1:-4])
-                        new_user_passwd = self.User.UserPasswd(username = data_fields[0], hash_alg = hash_alg, last_passwd_change = matching_hash[-4])
+                        new_user_passwd = iu.UserPasswd(username = data_fields[0], hash_alg = hash_alg, last_passwd_change = matching_hash[-4])
                         
                         if hash_alg is not None:
                             if hash_alg == "DES":
@@ -115,7 +117,9 @@ class Image:
                         
                         hashes.append(new_user_passwd)
                         data_fields[1] = new_user_passwd.hash_
-                        new_user = self.User(self.uuid_, *data_fields)
+                        new_user = iu.User(self.uuid_, *data_fields)
+                    
+                    user_data.append(new_user)
                     
                     database.insert_user(new_user)
                     database.insert_user_passwd(new_user_passwd)
@@ -127,22 +131,8 @@ class Image:
             return construct_user_data()
         except FileNotFoundError:
             print("Passwd file not found.")
-                
+            
     def process_file_system(self, verbose = False):
-        skip_list = Image.conf.skip_list
-        database = db.database(Image.conf.db_path)
-        
-        print(f"Verbose mode: {verbose}")
-        print("Processing filesystem...")
-        print("----------------------------------")
-        time.sleep(2)
-        
-        # test only in /var for now
-        dir_path = self.image_path + "/var"
-        files_read = 0
-        files_perm_denied = 0
-        dir_perm_denied = 0
-        
         # read in DFS mode
         def read_files(dir_path):
             nonlocal files_read, dir_perm_denied, files_perm_denied
@@ -160,7 +150,12 @@ class Image:
                             test_read = open(entry_path, 'rb')
                             
                             try:
-                                new_file = self.File(self.uuid_, entry, entry_path)
+                                new_file = iu.File(self.uuid_, entry, entry_path)
+                                
+                                # vt_scan = vt.VTscan(new_file.md5_hash, new_file.path, self.conf.VT_API_KEY, self.conf.VT_API_URL)
+                                # if vt_scan.check_hash() == True:
+                                #     self.malicious_files.append(new_file)
+                                    
                                 self.files.append(new_file)
                                 if database.search_file(new_file) == False:
                                     database.insert_file(new_file)
@@ -175,84 +170,73 @@ class Image:
                             print(f"Permission denied for {entry_path}")
                         if os.path.isdir(entry_path): dir_perm_denied += 1
                         else: files_perm_denied += 1
+                        
+        skip_list = Image.conf.skip_list
+        database = db.Database(Image.conf.db_path)
+        
+        print(f"Verbose mode: {verbose}")
+        print("Processing filesystem...")
+        print(delimiter)
+        time.sleep(2)
+        
+        # test only in /var for now
+        dir_path = self.image_path + "/var"
+        files_read = 0
+        files_perm_denied = 0
+        dir_perm_denied = 0
+        
         
         if verbose:
             print("-----------------Reading files-----------------")
         
         # print all entries, only keep files
         read_files(dir_path)
-        print("----------------------------------")
+        print(delimiter)
         
+        print("Filesystem processing completed.")
+        print("PROCESSING SUMMARY:")
+        print("-------------------")
         print("File reading complete.")
         print(f"Files read: {files_read}")
         print(f"Permission denied for: {dir_perm_denied} directories")
         print(f"Permission denied for: {files_perm_denied} files")
         if files_perm_denied > 0 or dir_perm_denied > 0:
             print("Try running as sudo to read all entries.")
-        # if run as sudo, there are files like speech dispatcher that make the program to never end
         
+        print(delimiter)
         database.close_connection()
-    
-    class File:
-        def __init__(self, image_uuid, name, path):
-            self.image_uuid = image_uuid
-            self.name = name
-            self.path = path
-            self.mime_type = self.get_file_type(self.path)
-            try:
-                self.md5_hash, self.sha1_hash = self.calculate_hashes()
-            except TypeError: pass
-            
-            
-        def calculate_hashes(self):
-            try:
-                with open(self.path, "rb") as file_obj:
-                    file = file_obj.read().strip()
-                
-                    md5_hash = self.calculate_md5(file)
-                    sha1_hash = self.calculate_sha1(file)
-                   
-                file_obj.close()    
-                return md5_hash, sha1_hash
-                
-            except OSError:
-                print(f"Error while calculating hashes for {self.path} - type: {self.mime_type}")
-                raise
-                
-        def calculate_md5(self, file):    
-            return hashlib.md5(file).hexdigest()
+        
+    def print_image(self):
+        print("IMAGE SUMMARY:")
+        print("--------------")
+        print(f"UUID: {self.uuid_}")
+        print(f"Path: {self.image_path}")
+        print(f"Hostname: {self.hostname}")
 
-        def calculate_sha1(self, file):
-            return hashlib.sha1(file).hexdigest()
+        users_no = len(self.users)
+        print(f"Users: {users_no} in total")
+        for user in self.users:
+            print(f"    {user.username} - home dir: {user.home_dir}")
         
-        def get_file_type(self, file_path):
-            mime = magic.Magic(mime = True)
-            file_type = mime.from_file(file_path)
+        try:    
+            interfaces_no = len(self.interfaces)
             
-            return file_type
+            if interfaces_no > 0:
+                print(f"Interfaces: {interfaces_no} detected")
+                for interface in self.interfaces:
+                    print(f"    {interface.name} - {interface.ip}")
+            else:
+                print("No interfaces detected.")
+        except TypeError:
+            print("Interfaces file not found.")
+            
+        files_no = len(self.files)
+        mal_no = len(self.malicious_files)
         
-    class Interface:
-        def __init__(self, image_uuid, name, ip):
-            self.image_uuid = image_uuid
-            self.name = name
-            self.ip = ip
-            
-    class User:
-        def __init__(self, image_uuid, username, passwd_hash, uid, gid, gecos, home_dir, shell_path):
-            self.image_uuid = image_uuid
-            self.username = username
-            self.passwd_hash = passwd_hash
-            self.uid = uid
-            self.gid = gid
-            self.gecos = gecos
-            self.home_dir = home_dir
-            self.shell_path = shell_path
-            
-        class UserPasswd:
-            def __init__(self, username, hash_alg = None, alg_param = None, salt = None, hash_ = None, last_passwd_change = 0):
-                self.username = username
-                self.hash_alg = hash_alg
-                self.alg_param = alg_param
-                self.salt = salt
-                self.hash_ = hash_
-                self.last_passwd_change = last_passwd_change
+        if mal_no == 0:
+            print(f"{files_no} files parsed, from which NONE found malicious")
+        
+        else:
+            print(f"{files_no} files parsed, from which {mal_no} found malicious")
+            for mal_file in self.malicious_files:
+                print(f"    {mal_file.path}")

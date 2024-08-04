@@ -8,7 +8,6 @@ delimiter="---------------------------------------------------------------------
 
 set -e
 
-echo $delimiter
 echo "File info for $ewf_file:"
 ewfinfo $ewf_file
 sleep 1

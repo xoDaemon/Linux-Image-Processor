@@ -6,7 +6,6 @@ delimiter="---------------------------------------------------------------------
 
 set -e
 
-echo $delimiter
 echo "Binding /mnt directory to filesystem:"
 mount --bind /mnt "$filesystem_path/mnt"
 echo "[+] Binding successful"

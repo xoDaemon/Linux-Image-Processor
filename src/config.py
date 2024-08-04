@@ -12,13 +12,12 @@ class ConfigMeta(type):
 class Config(metaclass = ConfigMeta):
     def __init__(self):
         config = configparser.ConfigParser()
-        config.read('./config.ini')
+        config.read('./config_files/config.ini')
         
         self.VT_API_KEY = config['VT']['VT_API_KEY']
         self.VT_API_URL = config['VT']['VT_API_URL']
-        self.image_path = config['PATHS']['image_path']
+        self.filesystem_path = config['PATHS']['filesystem_path']
         self.db_path = config['PATHS']['db_path']
         self.disk_path = config['PATHS']['disk_path']
         self.phy_mount_path = config['PATHS']['phy_mount_path']
-        self.log_mount_path = config['PATHS']['log_mount_path']
         self.skip_list = config['PATHS']['skip_list']

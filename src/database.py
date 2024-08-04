@@ -1,7 +1,7 @@
 import sqlite3 as sql
 import pandas as pd
 
-class database:
+class Database:
     def __init__(self, db_path):
         self.con = sql.connect(db_path)
         self.cursor = self.con.cursor()
