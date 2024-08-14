@@ -1,5 +1,4 @@
 import sqlite3 as sql
-import pandas as pd
 
 class Database:
     def __init__(self, db_path):
@@ -8,11 +7,6 @@ class Database:
         
     def close_connection(self):
         self.con.close()
-        
-    def show_table(self, table_name):
-        df = pd.read_sql_query(f'SELECT * FROM {table_name}', self.con)
-        print(df)
-        print(df.to_string(index=False))
         
     def create_tables(self):
         self.cursor.execute(
